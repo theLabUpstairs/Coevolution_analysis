@@ -6,7 +6,6 @@ rm(list = ls())
 #------------------------------------------------------------------------------
 library(tidyverse)
 library(ape)
-library(paco)
 
 library(phytools)
 
@@ -19,7 +18,7 @@ symbiont_tree_desulfo <-  read.tree("data/01_symbiont_tree_desulfo.newick")
 host_tree <- read.tree("data/01_host_tree.newick")
 
 
-# Prune trees
+# Prune trees (arcobacteraea)
 #------------------------------------------------------------------------------
 
 # Pull tips to inlcude in the trees
@@ -39,7 +38,8 @@ symbiont_tree <- drop.tip(symbiont_tree, "Arcobacter_EP1_GCA_001655195.1_ASM1655
 host_tree <- drop.tip(host_tree, "nrpr2neighbors_KT023596.1.1885_U|Obazoa|Breviatea|Breviatea_XX|Breviatea_XXX|Breviatea_XXXX|Lenisia|Lenisia_limosa")
 association_df <- association_df %>% filter(Symbiont!="Arcobacter_EP1_GCA_001655195.1_ASM165519v1_genomic")
 
-# Rename strains names
+
+# Rename strains names (arcobacteraea)
 #------------------------------------------------------------------------------
 
 # Rename host labels
@@ -74,7 +74,8 @@ association_df <- association_df %>%
     Host = recode(Host, !!!rename_host)
   )
 
-# Transform into distance matrices and binary association matrix
+
+# Transform into distance matrices and binary association matrix (arcobacteraea)
 #------------------------------------------------------------------------------
 symbiont_dist <- cophenetic(symbiont_tree)
 host_dist <- cophenetic(host_tree)
@@ -82,16 +83,20 @@ assoc_matrix <- as.matrix(table(association_df$Symbiont, association_df$Host))
 
 
 
-# Desulfo tree
+# Process the Desulfo data
 #------------------------------------------------------------------------------
 
-
+# Extract names of tree tips that includes "desulfo"
 desulfo_labels <- grep("desulfo", symbiont_tree_desulfo$tip.label, ignore.case = TRUE, value = TRUE)
+# Prune tree to only inlcude desulfo tips
 symbiont_tree_desulfo <- drop.tip(symbiont_tree_desulfo, setdiff(symbiont_tree_desulfo$tip.label, desulfo_labels))
+# Prune tree to remove "DesulfovibrioDMSS1_2576861818", lack information about breviate strain
 symbiont_tree_desulfo <- drop.tip(symbiont_tree_desulfo, "DesulfovibrioDMSS1_2576861818")
 
+# Remove "'" flanking the strain name in tree
 symbiont_tree_desulfo$tip.label <- gsub("^'|'$", "", symbiont_tree_desulfo$tip.label)
 
+# Rename tips 
 rename_desulfo <- c(
   "7-Pygsuia.11108931849_Desulfovibrio7M6.assembly" = "Desulfo7M6_Pygsuia",
   "1-PCE.Desulfovibrionaceae_trycycler_medaka_polypolish" = "Desulfovibrionaceae_PCE",
@@ -99,73 +104,30 @@ rename_desulfo <- c(
   "5-LRM2N6.11108969682_Maridesulfovibrio5SRBS1.assembly" = "Maridesulfovibrio5SRBS1_LRM2N6",
   "5-LRM2N6.Maridesulfovibrio_medaka_polypolish" = "Maridesulfovibrio_LRM2N6",
   "2-FB10N2.11108969682_Maridesulfovibrio2SRBS4_assembly" = "Maridesulfovibrio2SRBS4_FB10N2",
-  "7-Pygsuia.11108969682_Desulfovibrio7SRBS1_assembly" = "Desulfo7SRBS1_Pygsuia"
-)
-
+  "7-Pygsuia.11108969682_Desulfovibrio7SRBS1_assembly" = "Desulfo7SRBS1_Pygsuia")
 symbiont_tree_desulfo$tip.label <- rename_desulfo[symbiont_tree_desulfo$tip.label]
 
-
+# Bulid an association matrix
+# Strains to use in the matrix (LRM1b lacks desulfovibrio)
 breviate_ids <- c("PCE", "FB10N2", "LRM2N6", "Pygsuia")
-
 desulfo_labels <- symbiont_tree_desulfo$tip.label
-
-# Bygg om assoc_matrix
-assoc_matrix <- matrix(0, nrow = length(breviate_ids), ncol = length(desulfo_labels),
+# An empty matrix
+assoc_matrix_desulfo <- matrix(0, nrow = length(breviate_ids), ncol = length(desulfo_labels),
                        dimnames = list(breviate_ids, desulfo_labels))
-
+# Populate the empty matrix
 for (i in seq_along(breviate_ids)) {
   for (j in seq_along(desulfo_labels)) {
     if (grepl(breviate_ids[i], desulfo_labels[j])) {
-      assoc_matrix[i, j] <- 1
+      assoc_matrix_desulfo[i, j] <- 1
     }
   }
 }
-assoc_matrix_desulfo <- assoc_matrix
+
+# Build phylogeny distance trees 
 symbiont_dist_desulfo <- cophenetic(symbiont_tree_desulfo)
-assoc_matrix_desulfo
-symbiont_dist_desulfo
-host_tree <- drop.tip(host_tree, "LRM1b")
-host_dist <- cophenetic(host_tree)
-
-
-# Preparing the input data
-paco_data <- prepare_paco_data(H = host_dist, P = symbiont_dist_desulfo, HP = assoc_matrix_desulfo)
-
-# Dimensional reduction using PCoA
-paco_data <- add_pcoord(paco_data)
-
-# Run PACo
-paco_result <- PACo(paco_data, nperm = 1000, method = "r2", symmetric = TRUE)
-
-# Results
-# - p-value (0.279)
-paco_result$gof$p 
-# - Goodness-of-fit, r2 (0.7528783)
-paco_result$gof$ss
-# - Number of permutations (1000)
-paco_result$gof$n
-
-
-
-association_df <- which(assoc_matrix_desulfo == 1, arr.ind = TRUE)
-association_df <- data.frame(
-  Host = rownames(assoc_matrix_desulfo)[association_df[, 1]],
-  Symbiont = colnames(assoc_matrix_desulfo)[association_df[, 2]]
-)
-matching_hosts <- association_df$Host
-matching_symbionts <- association_df$Symbiont
-
-# Root trees (if not already)
-host_tree <- root(host_tree, outgroup = "FB10N2", resolve.root = TRUE)
-#symbiont_tree <- root(symbiont_tree, outgroup = "Desulfovibrionaceae_PCE", resolve.root = TRUE)
-
-# Generate cophylogeny
-cophylo_obj <- cophylo(host_tree, symbiont_tree_desulfo, assoc = cbind(matching_hosts, matching_symbionts))
-
-# Plot
-plot(cophylo_obj, link.type = "curved", link.lwd = 2, link.col = "blue")
-
-
+# LMR1b is dropped, it lacks desulfo strains
+host_tree_desulfo <- drop.tip(host_tree, "LRM1b")
+host_dist_desulfo <- cophenetic(host_tree_desulfo)
 
 
 # Save data
@@ -178,13 +140,9 @@ write_csv(association_df, "data/02_assoc_df.csv")
 write.tree(host_tree, file = "data/02_host_tree.newick")
 write.tree(symbiont_tree, file = "data/02_symbiont_tree.newick")
 
-
-
-
-
-
-
-
-
-
-
+# Desulfo related
+saveRDS(symbiont_dist_desulfo, "data/02_symbiont_dist_desulfo.rds")
+saveRDS(host_dist_desulfo, "data/02_host_dist_desulfo.rds")
+saveRDS(assoc_matrix_desulfo, "data/02_assoc_matrix_desulfo.rds")
+write.tree(host_tree_desulfo, file = "data/02_host_tree_desulfo.newick")
+write.tree(symbiont_tree_desulfo, file = "data/02_symbiont_tree_desulfo.newick")
