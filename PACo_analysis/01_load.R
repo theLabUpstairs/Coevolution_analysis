@@ -33,12 +33,3 @@ write_csv(association_df,"data/01_association_df.csv")
 write.tree(symbiont_tree, file = "data/01_symbiont_tree.newick")
 write.tree(symbiont_tree_desulfo, file = "data/01_symbiont_tree_desulfo.newick")
 write.tree(host_tree, file = "data/01_host_tree.newick")
-
-
-
-
-
-#symbiont_tree_desulfo <- read.tree()
-#symbiont_tree_desulfo$tip.label
-
-#grep("desulfo", symbiont_tree_desulfo$tip.label, ignore.case = TRUE, value = TRUE)
