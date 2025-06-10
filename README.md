@@ -6,6 +6,6 @@ The analyses are part of the study:
 
 ## Description
 
-This repository contains R scripts used to assess breviate–prokaryote coevolution through Mantel tests, PACo analysis, and tanglegrams.  
+This repository contains R scripts used to assess breviate–prokaryote coevolution through Mantel tests, PACo analysis, and tanglegrams (PACo_analysis/figures).
 
 
